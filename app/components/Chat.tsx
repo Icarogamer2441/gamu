@@ -165,13 +165,26 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel }: ChatProps
         content: data.text, 
         isUser: false 
       }]);
-    } catch (error) {
-      console.error('Error:', error);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        content: `Error: ${error.message}. Please check your API key and try again.`,
-        isUser: false
-      }]);
+    } catch (error: unknown) {
+      if (error instanceof Error) {
+        setMessages(prev => [
+           ...prev,
+           {
+             id: Date.now().toString(),
+             content: `Error: ${error.message}. Please check your API key and try again.`,
+             isUser: false,
+           },
+        ]);
+      } else {
+        setMessages(prev => [
+          ...prev,
+          {
+            id: Date.now().toString(),
+            content: 'Unknown error occurred.',
+            isUser: false,
+          },
+        ]);
+      }
     } finally {
       setGenerating(false);
     }
