@@ -218,12 +218,14 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel }: ChatProps
           : msg
       ));
     } catch (error) {
-      console.error('Error:', error);
-      setMessages(prev => [...prev, {
-        id: Date.now().toString(),
-        content: `Error: ${error.message}. Please check your API key and try again.`,
-        isUser: false
-      }]);
+      setMessages(prev => [
+        ...prev,
+        {
+          id: Date.now().toString(),
+                  content: `Unknown error occurred. Please check your API key and try again.`,
+                  isUser: false,
+        },
+      ]);
     } finally {
       setGenerating(false);
     }
