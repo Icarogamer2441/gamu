@@ -12,6 +12,17 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showNotification, setShowNotification] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
+
+  const handleCopyClick = async () => {
+    try {
+      await navigator.clipboard.writeText(code);
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy text: ', err);
+    }
+  };
 
   useEffect(() => {
     const checkMobile = () => {
@@ -92,6 +103,12 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
   return (
     <div className="relative">
       <div className="absolute top-2 right-2 z-10 flex gap-2">
+        <button
+          onClick={handleCopyClick}
+          className={`px-3 py-1 ${copySuccess ? 'bg-green-600' : 'bg-blue-600'} text-white rounded-md text-sm transition-colors duration-200`}
+        >
+          {copySuccess ? 'Copied!' : 'Copy'}
+        </button>
         {language === 'html' && (
           <button
             onClick={() => setShowPreview(true)}
@@ -110,4 +127,4 @@ export function CodeBlock({ code, language }: CodeBlockProps) {
       </SyntaxHighlighter>
     </div>
   );
-} 
+}

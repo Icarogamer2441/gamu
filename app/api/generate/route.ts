@@ -29,6 +29,8 @@ const systemPrompt = `
   - Add parallax effects
   - Include dark/light mode toggle
   - Make all content responsive
+  - All DOM manipulations must be properly handled after the DOM is loaded
+  - Event listeners must be properly cleaned up when needed
   
   IMPORTANT:
   - DO NOT include progress bars or loading animations unless specifically requested
@@ -37,6 +39,9 @@ const systemPrompt = `
   - Generate ASCII art or use Unicode for icons
   - No external images or assets
   - Code must be production-ready
+  - All JavaScript code must run in the browser only
+  - Ensure DOM is loaded before manipulating it (use DOMContentLoaded or defer)
+
 `;
 
 export async function POST(request: Request) {
