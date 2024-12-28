@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback, memo } from 'react';
 import { motion } from 'framer-motion';
 import { CodeBlock } from './CodeBlock';
 import { ChatMessage } from './ChatMessage';
+import { saveChatToStorage, getChatListFromStorage, ChatList } from '../utils/chatStorage';
 
 interface Message {
   id: string;
@@ -17,7 +18,9 @@ interface ChatProps {
   onBack: () => void;
   apiKey: string;
   apiModel: string;
+  chatId?: string;
 }
+
 
 // Memoized loading message component
 const LoadingMessage = memo(() => (
@@ -44,19 +47,46 @@ const IconButton = memo(({ onClick, disabled, title, children }: {
   </button>
 ));
 
-export function Chat({ initialPrompt = '', onBack, apiKey, apiModel }: ChatProps) {
+export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Date.now().toString() }: ChatProps) {
   const [prompt, setPrompt] = useState(initialPrompt);
   const [generating, setGenerating] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string>(chatId);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Load initial messages when chat is selected
+  useEffect(() => {
+    if (chatId) {
+      const chats = getChatListFromStorage();
+      const selectedChat = chats.find(chat => chat.id === chatId);
+      if (selectedChat) {
+        setMessages(selectedChat.messages);
+      } else {
+        setMessages([]);
+      }
+    }
+  }, [chatId]);
 
   useEffect(() => {
     if (initialPrompt) {
       setPrompt(initialPrompt);
     }
   }, [initialPrompt]);
+
+  // Save messages in real-time
+  useEffect(() => {
+    if (messages.length > 0 && chatId) {
+      const chatData: ChatList = {
+        id: chatId,
+        title: messages[0].content.slice(0, 30) + '...',
+        messages: messages,
+        createdAt: Date.now()
+      };
+      saveChatToStorage(chatData);
+    }
+  }, [messages, chatId]);
 
   // Auto-scroll effect
   useEffect(() => {
@@ -129,20 +159,19 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel }: ChatProps
   const generateCode = useCallback(async () => {
     if (!prompt.trim() || generating) return;
 
-    const userMessage = prompt;
-    setPrompt('');
-    setGenerating(true);
-    
-    const newMessage: Message = {
+    const userMessage: Message = {
       id: Date.now().toString(),
-      content: userMessage,
+      content: prompt,
       isUser: true
     };
     
-    setMessages(prev => [...prev, newMessage]);
+    setPrompt('');
+    setGenerating(true);
+    setMessages(prev => [...prev, userMessage]);
     
     try {
       const response = await fetch('/api/generate', {
+
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -150,34 +179,34 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel }: ChatProps
           'X-API-MODEL': apiModel
         },
         body: JSON.stringify({ 
-          prompt: userMessage,
+          prompt: userMessage.content,
           chatHistory: messages 
         }),
-      });
+        });
 
-      if (!response.ok) {
+        if (!response.ok) {
         throw new Error('Failed to generate response');
-      }
+        }
 
-      const data = await response.json();
-      setMessages(prev => [...prev, { 
+        const data = await response.json();
+        const aiMessage: Message = {
         id: Date.now().toString(),
-        content: data.text, 
-        isUser: false 
-      }]);
-    } catch (error: unknown) {
-      setMessages(prev => [
-           ...prev,
-           {
-             id: Date.now().toString(),
-             content: `Unknown error occurred. Please check your API key and try again.`,
-             isUser: false,
-           },
-      ]);
-    } finally {
-      setGenerating(false);
-    }
-  }, [prompt, generating, messages, apiKey, apiModel]);
+        content: data.text,
+        isUser: false
+        };
+        
+        setMessages(prev => [...prev, aiMessage]);
+      } catch (error) {
+        const errorMessage: Message = {
+        id: Date.now().toString(),
+        content: 'Unknown error occurred. Please check your API key and try again.',
+        isUser: false
+        };
+        setMessages(prev => [...prev, errorMessage]);
+      } finally {
+        setGenerating(false);
+      }
+    }, [prompt, generating, messages, apiKey, apiModel]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
