@@ -56,6 +56,13 @@ export default function Home() {
     setChats(savedChats.sort((a, b) => b.createdAt - a.createdAt));
     if (savedApiKey) setApiKey(savedApiKey);
     if (savedApiModel) setApiModel(savedApiModel);
+
+    // If there's a selectedChatId in localStorage, use it
+    const savedSelectedChatId = localStorage.getItem('selectedChatId');
+    if (savedSelectedChatId && savedChats.some(chat => chat.id === savedSelectedChatId)) {
+      setSelectedChatId(savedSelectedChatId);
+      setShowChat(true);
+    }
   }, []);
 
   // Refresh chat list periodically
@@ -79,6 +86,20 @@ export default function Home() {
 
   const handleChatSelect = useCallback((chatId: string) => {
     setSelectedChatId(chatId);
+    localStorage.setItem('selectedChatId', chatId);
+    // Get the chat content and set it as initial prompt if needed
+    const selectedChat = chats.find(chat => chat.id === chatId);
+    if (selectedChat && selectedChat.messages.length > 0) {
+      setInitialPrompt(selectedChat.messages[0].content);
+    }
+    setShowChat(true);
+  }, [chats]);
+
+  const handleNewChat = useCallback(() => {
+    const newChatId = Date.now().toString();
+    setSelectedChatId(newChatId);
+    localStorage.setItem('selectedChatId', newChatId);
+    setInitialPrompt(''); // Clear initial prompt for new chat
     setShowChat(true);
   }, []);
 
@@ -96,6 +117,9 @@ export default function Home() {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       if (initialPrompt.trim() && apiKey.trim()) {
+        const newChatId = Date.now().toString();
+        setSelectedChatId(newChatId);
+        localStorage.setItem('selectedChatId', newChatId);
         setShowChat(true);
       }
     }
@@ -105,59 +129,58 @@ export default function Home() {
     setInitialPrompt(e.target.value);
   }, []);
 
-  if (showChat) {
-    return (
-      <div className="flex h-screen">
-        <div className="w-64 bg-[#0a0a0a] border-r border-gray-800 overflow-y-auto">
-          <div className="p-4">
-            <button
-              onClick={() => {
-                setShowChat(false);
-                setSelectedChatId(null);
-              }}
-              className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg mb-4"
-            >
-              New Chat
-            </button>
-            {chats.map((chat) => (
-              <div
-                key={chat.id}
-                className={`p-3 rounded-lg mb-2 cursor-pointer flex justify-between items-center ${
-                  selectedChatId === chat.id ? 'bg-[#1a1a1a]' : 'hover:bg-[#1a1a1a]'
-                }`}
-                onClick={() => handleChatSelect(chat.id)}
-              >
-                <span className="text-sm text-gray-300 truncate">{chat.title}</span>
+      if (showChat) {
+        return (
+          <div className="flex h-screen">
+            <div className="w-64 bg-[#0a0a0a] border-r border-gray-800 overflow-y-auto">
+              <div className="p-4">
                 <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteChat(chat.id);
-                  }}
-                  className="text-gray-500 hover:text-red-500"
+                  onClick={handleNewChat}
+                  className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg mb-4"
                 >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
+                  New Chat
                 </button>
+                {chats.map((chat) => (
+                  <div
+                    key={chat.id}
+                    className={`p-3 rounded-lg mb-2 cursor-pointer flex justify-between items-center ${
+                      selectedChatId === chat.id ? 'bg-[#1a1a1a]' : 'hover:bg-[#1a1a1a]'
+                    }`}
+                    onClick={() => handleChatSelect(chat.id)}
+                  >
+                    <span className="text-sm text-gray-300 truncate">{chat.title}</span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteChat(chat.id);
+                      }}
+                      className="text-gray-500 hover:text-red-500"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                        <path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
+            </div>
+            <div className="flex-1">
+              <Chat 
+                key={selectedChatId}
+                initialPrompt={initialPrompt} 
+                onBack={() => {
+                  setShowChat(false);
+                  setSelectedChatId(null);
+                  setInitialPrompt('');
+                }}
+                apiKey={apiKey}
+                apiModel={apiModel}
+                chatId={selectedChatId || undefined}
+              />
+            </div>
           </div>
-        </div>
-        <div className="flex-1">
-          <Chat 
-            initialPrompt={initialPrompt} 
-            onBack={() => {
-              setShowChat(false);
-              setSelectedChatId(null);
-            }}
-            apiKey={apiKey}
-            apiModel={apiModel}
-            chatId={selectedChatId || undefined}
-          />
-        </div>
-      </div>
-    );
-  }
+        );
+      }
 
   return (
     <div className="min-h-screen bg-[#0a0a0a] text-white">

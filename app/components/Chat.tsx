@@ -84,7 +84,7 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
       };
       saveChatToStorage(chatData);
     }
-  }, [messages, currentChatId]);
+  }, [messages, currentChatId]); // This effect now handles real-time saving
 
   // Auto-scroll effect
   useEffect(() => {
@@ -136,7 +136,7 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
     } finally {
       setGenerating(false);
     }
-  }, [prompt, generating, messages, apiKey, apiModel]);
+  }, [prompt, generating, messages, apiKey, apiModel, currentChatId]);
 
   const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -172,6 +172,18 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
     
     setPrompt('');
     setGenerating(true);
+    
+    // Save the initial message immediately for new chats
+    if (messages.length === 0) {
+      const newChatData: ChatList = {
+      id: currentChatId,
+      title: userMessage.content.slice(0, 30) + '...',
+      messages: [userMessage],
+      createdAt: Date.now()
+      };
+      saveChatToStorage(newChatData);
+    }
+    
     setMessages(prev => [...prev, userMessage]);
     
     try {
