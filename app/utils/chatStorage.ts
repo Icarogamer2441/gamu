@@ -5,6 +5,7 @@ export interface ChatList {
 		id: string;
 		content: string;
 		isUser: boolean;
+		imageData?: string; // Add support for base64 image data
 	}>;
 	createdAt: number;
 }

@@ -59,7 +59,7 @@ export async function POST(request: Request) {
     }
 
     // Parse request body
-    const { prompt, chatHistory } = await request.json();
+    const { prompt, chatHistory, imageData } = await request.json();
 
     if (!prompt) {
       return NextResponse.json({ error: 'Prompt is required' }, { status: 400 });
@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const model = genAI.getGenerativeModel({ model: apiModel });
 
     // Create full prompt with system prompt and chat history
-    const fullPrompt = `
+    let fullPrompt = `
       ${systemPrompt}
       
       Chat History:
@@ -80,9 +80,26 @@ export async function POST(request: Request) {
       User request: ${prompt}
     `;
 
-    // Generate response
-    const result = await model.generateContent(fullPrompt);
-    const response = await result.response;
+    let response;
+    
+    if (imageData) {
+      // If image data is present, create a multi-part prompt
+      const result = await model.generateContent([
+      fullPrompt,
+      {
+        inlineData: {
+        mimeType: "image/png",
+        data: imageData.split(',')[1] // Remove the data:image/png;base64, prefix
+        }
+      }
+      ]);
+      response = await result.response;
+    } else {
+      // Text-only prompt
+      const result = await model.generateContent(fullPrompt);
+      response = await result.response;
+    }
+
     const text = response.text();
 
     return NextResponse.json({ text });

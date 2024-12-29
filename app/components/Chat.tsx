@@ -11,6 +11,7 @@ interface Message {
   content: string;
   isUser: boolean;
   isGenerating?: boolean;
+  imageData?: string;
 }
 
 interface ChatProps {
@@ -20,7 +21,6 @@ interface ChatProps {
   apiModel: string;
   chatId?: string;
 }
-
 
 // Memoized loading message component
 const LoadingMessage = memo(() => (
@@ -58,16 +58,14 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
 
   // Load initial messages when chat is selected
   useEffect(() => {
-    if (chatId) {
+    if (currentChatId) {
       const chats = getChatListFromStorage();
-      const selectedChat = chats.find(chat => chat.id === chatId);
+      const selectedChat = chats.find(chat => chat.id === currentChatId);
       if (selectedChat) {
         setMessages(selectedChat.messages);
-      } else {
-        setMessages([]);
       }
     }
-  }, [chatId]);
+  }, [currentChatId]);
 
   useEffect(() => {
     if (initialPrompt) {
@@ -77,16 +75,16 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
 
   // Save messages in real-time
   useEffect(() => {
-    if (messages.length > 0 && chatId) {
+    if (messages.length > 0) {
       const chatData: ChatList = {
-        id: chatId,
+        id: currentChatId,
         title: messages[0].content.slice(0, 30) + '...',
         messages: messages,
         createdAt: Date.now()
       };
       saveChatToStorage(chatData);
     }
-  }, [messages, chatId]);
+  }, [messages, currentChatId]);
 
   // Auto-scroll effect
   useEffect(() => {
@@ -140,30 +138,37 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
     }
   }, [prompt, generating, messages, apiKey, apiModel]);
 
-  const handleImageUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (['image/png', 'image/jpeg', 'image/jpg'].includes(file.type)) {
+    if (file.type === 'image/png') {
       const reader = new FileReader();
       reader.onload = (e) => {
-        const img = e.target?.result as string;
-        setPrompt(prev => prev + `\n[Image attached: ${file.name}]`);
+        const imageData = e.target?.result as string;
+        setPrompt(prev => prev + `\n[Image attached]`);
+        localStorage.setItem('pendingImageData', imageData);
       };
       reader.readAsDataURL(file);
     } else {
-      alert('Please select only PNG, JPG or JPEG files');
+      alert('Please select only PNG files');
     }
   }, []);
 
   const generateCode = useCallback(async () => {
     if (!prompt.trim() || generating) return;
 
+    const pendingImageData = localStorage.getItem('pendingImageData');
+    
     const userMessage: Message = {
       id: Date.now().toString(),
       content: prompt,
-      isUser: true
+      isUser: true,
+      imageData: pendingImageData || undefined
     };
+    
+    // Clear pending image data
+    localStorage.removeItem('pendingImageData');
     
     setPrompt('');
     setGenerating(true);
@@ -171,7 +176,6 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
     
     try {
       const response = await fetch('/api/generate', {
-
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -180,40 +184,43 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
         },
         body: JSON.stringify({ 
           prompt: userMessage.content,
-          chatHistory: messages 
+          chatHistory: messages,
+          imageData: userMessage.imageData
         }),
-        });
+      });
 
-        if (!response.ok) {
+      if (!response.ok) {
         throw new Error('Failed to generate response');
-        }
+      }
 
-        const data = await response.json();
-        const aiMessage: Message = {
+      const data = await response.json();
+      const aiMessage: Message = {
         id: Date.now().toString(),
         content: data.text,
         isUser: false
-        };
-        
-        setMessages(prev => [...prev, aiMessage]);
-      } catch (error) {
-        const errorMessage: Message = {
+      };
+      
+      setMessages(prev => [...prev, aiMessage]);
+    } catch (error) {
+      const errorMessage: Message = {
         id: Date.now().toString(),
         content: 'Unknown error occurred. Please check your API key and try again.',
         isUser: false
-        };
-        setMessages(prev => [...prev, errorMessage]);
-      } finally {
-        setGenerating(false);
-      }
-    }, [prompt, generating, messages, apiKey, apiModel]);
+      };
+      setMessages(prev => [...prev, errorMessage]);
+    } finally {
+      setGenerating(false);
+    }
+  }, [prompt, generating, messages, apiKey, apiModel]);
 
   const handleKeyPress = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
-      generateCode();
+      if (!generating && prompt.trim()) {
+        generateCode();
+      }
     }
-  }, [generateCode]);
+  }, [generateCode, generating, prompt]);
 
   const continueResponse = useCallback(async () => {
     if (generating || messages.length === 0) return;
@@ -251,8 +258,8 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
         ...prev,
         {
           id: Date.now().toString(),
-                  content: `Unknown error occurred. Please check your API key and try again.`,
-                  isUser: false,
+          content: 'Unknown error occurred. Please check your API key and try again.',
+          isUser: false,
         },
       ]);
     } finally {
@@ -287,17 +294,22 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto pb-32">
-        {messages.map((message) => (
-          <ChatMessage 
+        <div className="flex-1 overflow-y-auto pb-32">
+          {messages.map((message) => (
+          <div 
             key={message.id}
+            className={`flex ${message.isUser ? 'justify-end' : 'justify-start'}`}
+          >
+            <ChatMessage 
             content={message.content} 
             isUser={message.isUser} 
             isGenerating={message.isGenerating}
-          />
-        ))}
-        <div ref={chatEndRef} />
-      </div>
+            imageData={message.imageData}
+            />
+          </div>
+          ))}
+          <div ref={chatEndRef} />
+        </div>
 
       <div className="border-t border-gray-800 bg-[#0a0a0a] p-4 fixed bottom-0 left-0 right-0">
         <div className="max-w-5xl mx-auto">
@@ -327,13 +339,13 @@ export function Chat({ initialPrompt = '', onBack, apiKey, apiModel, chatId = Da
                 type="file"
                 ref={imageInputRef}
                 onChange={handleImageUpload}
-                accept=".png,.jpg,.jpeg"
+                accept=".png"
                 className="hidden"
               />
               
               <IconButton
                 onClick={() => imageInputRef.current?.click()}
-                title="Upload image (PNG, JPG, JPEG)"
+                title="Upload image (PNG only)"
               >
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor">
                   <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
