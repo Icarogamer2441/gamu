@@ -1,0 +1,2 @@
+app/api/generate/route.ts
+app/components/ChatMessage.tsx
