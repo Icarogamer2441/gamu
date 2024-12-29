@@ -70,7 +70,7 @@ export async function POST(request: Request) {
     const model = genAI.getGenerativeModel({ model: apiModel });
 
     // Create full prompt with system prompt and chat history
-    let fullPrompt = `
+    const fullPrompt = `
       ${systemPrompt}
       
       Chat History:

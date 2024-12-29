@@ -15,11 +15,7 @@ const eslintConfig = [
     rules: {
       "@typescript-eslint/no-unused-vars": "off",
       "react/display-name": "off"
-    },
-    ignores: [
-      "app/api/generate/route.ts",
-      "app/components/ChatMessage.tsx"
-    ]
+    }
   }
 ];
 
